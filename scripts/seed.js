@@ -6,6 +6,8 @@ const {
   users,
 } = require('../app/lib/placeholder-data.js');
 const bcrypt = require('bcrypt');
+const fs = require('fs');
+const { put } = require('@vercel/blob');
 
 async function seedUsers(client) {
   try {
@@ -105,12 +107,16 @@ async function seedCustomers(client) {
     // Insert data into the "customers" table
     const insertedCustomers = await Promise.all(
       customers.map(
-        (customer) => client.sql`
-        INSERT INTO customers (id, name, email, image_url)
-        VALUES (${customer.id}, ${customer.name}, ${customer.email}, ${customer.image_url})
-        ON CONFLICT (id) DO NOTHING;
-      `,
-      ),
+        async (customer) => {
+          const fileData = fs.readFileSync(`public/${customer.image_url}`);
+          const { url } = await put(customer.image_url, fileData, { access: 'public' });
+
+          return client.sql`
+            INSERT INTO customers (id, name, email, image_url)
+            VALUES (${customer.id}, ${customer.name}, ${customer.email}, ${url})
+            ON CONFLICT (id) DO NOTHING;
+          `;
+        }),
     );
 
     console.log(`Seeded ${insertedCustomers.length} customers`);
